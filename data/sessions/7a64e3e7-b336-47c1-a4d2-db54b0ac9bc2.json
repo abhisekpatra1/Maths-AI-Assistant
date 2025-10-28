@@ -1,0 +1,20 @@
+{
+  "session_id": "7a64e3e7-b336-47c1-a4d2-db54b0ac9bc2",
+  "created_at": "2025-10-28T22:33:41.493661",
+  "file_paths": [
+    "uploads/7a64e3e7-b336-47c1-a4d2-db54b0ac9bc2_cmh-2022-0365.pdf"
+  ],
+  "history": [
+    {
+      "role": "user",
+      "content": "hi waht is it ",
+      "timestamp": "2025-10-28T22:34:05.506885"
+    },
+    {
+      "role": "assistant",
+      "content": "Based on the provided medical documents, \"it\" is not clearly defined. The documents contain information about:\n*   **Abbreviations** such as NAFLD, NASH, HCC, BMI, NHANES, PNPLA3, and FLI (Document 3).\n*   **Study data** including incidence rates in various Asian countries (China, Japan, South Korea, Hong Kong, Israel) and prevalence data for North America, South America, Africa, Europe, and Asia (Documents 2, 4, 5).\n*   **Licensing terms** for an Open Access article (Document 1).\n\nIf you could specify what \"it\" refers to, I might be able to provide a more precise answer from the context.",
+      "timestamp": "2025-10-28T22:34:05.506885"
+    }
+  ],
+  "metadata": {}
+}

@@ -1,0 +1,38 @@
+# Core Framework
+streamlit
+fastapi
+uvicorn[standard]==0.27.0
+pydantic
+
+# LLM and RAG 
+langchain
+langchain-community
+langchain-core
+langchain-text-splitters
+langchain-google-genai
+
+# Vector Database
+chromadb
+sentence-transformers
+
+# Document Processing
+PyPDF2==3.0.1
+python-docx==1.1.0
+openpyxl==3.1.2
+Pillow
+pytesseract
+pdf2image
+pdfplumber==0.10.3
+
+# Report Generation
+reportlab
+# pypandoc==1.12  # Skip if not needed
+
+# Utilities
+python-multipart==0.0.6
+aiofiles==23.2.1
+python-dotenv==1.0.0
+requests==2.31.0
+
+# Monitoring & Logging
+loguru==0.7.2
