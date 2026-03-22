@@ -4,4 +4,10 @@ __pycache__/
 data/
 uploads/
 reports/
-*.pyc
+*.pyc.venv/ 
+__pycache__/ 
+.env 
+data/ 
+uploads/ 
+reports/ 
+*.pyc 
