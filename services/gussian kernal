@@ -1,0 +1,191 @@
+"""
+distance_sensitive_rag.py
+
+Distance-sensitive retrieval for RAG:
+P(d_i | q) ∝ exp( - ||e_q - e_i||^2 / (2*sigma^2) )
+
+Functions:
+- compute_retrieval_probs: convert embeddings to probabilities
+- retrieve_docs: deterministic top-k or stochastic sample-k
+- build_rag_prompt: combine query + docs (simple join)
+- example_usage: demonstrates a simple RAG flow
+
+Adapt embedding and LLM calls to your stack (OpenAI, sentence-transformers, etc.).
+"""
+
+import numpy as np
+from typing import List, Tuple, Optional
+
+# ---------------------------
+# Embedding helpers (adapt)
+# ---------------------------
+def embed_query(query: str) -> np.ndarray:
+    """
+    Replace this with your embedding call (OpenAI/text-embedding-*, sentence-transformers, etc.)
+    Must return a 1D numpy array.
+    """
+    # Example placeholder: raise error to remind you to implement
+    raise NotImplementedError("Implement embed_query() with your embedding provider.")
+
+
+def embed_documents(doc_texts: List[str]) -> np.ndarray:
+    """
+    Replace this with your embedding call for documents.
+    Should return a 2D numpy array with shape (num_docs, dim).
+    """
+    raise NotImplementedError("Implement embed_documents() with your embedding provider.")
+
+
+
+def compute_retrieval_probs(
+    q_emb: np.ndarray,
+    doc_embs: np.ndarray,
+    sigma: float = 1.0,
+    eps: float = 1e-12
+) -> np.ndarray:
+   
+    if q_emb.ndim != 1:
+        q_emb = q_emb.ravel()
+    # squared Euclidean distances
+    # careful: compute in a numerically stable vectorized way
+    diffs = doc_embs - q_emb  # shape (N, D)
+    sq_dists = np.sum(diffs * diffs, axis=1)  # shape (N,)
+
+    # kernel exponent: -sq_dist / (2 * sigma^2)
+    denom = 2.0 * (sigma ** 2)
+    exps = np.exp(-sq_dists / (denom + eps))
+
+    # normalize to probabilities
+    sump = np.sum(exps)
+    if sump <= 0.0:
+        # fallback: uniform
+        probs = np.ones_like(exps) / len(exps)
+    else:
+        probs = exps / sump
+    return probs
+
+
+
+def retrieve_docs(
+    query: str,
+    docs: List[Tuple[str, str]],
+    sigma: float = 1.0,
+    k: int = 5,
+    strategy: str = "topk",
+    return_probs: bool = False
+) -> List[Tuple[str, str, float]]:
+    """
+    Retrieve k documents for the query using distance-sensitive probabilities.
+
+    Inputs:
+      query: text query
+      docs: list of tuples (doc_id, doc_text)
+      sigma: uncertainty parameter
+      k: number of docs to return
+      strategy: "topk" (deterministic) or "sample" (stochastic sampling without replacement)
+      return_probs: if True, include probability with each returned doc
+
+    Returns:
+      list of (doc_id, doc_text, prob) tuples (prob present if return_probs True)
+    """
+    if len(docs) == 0 or k <= 0:
+        return []
+
+    # Get embeddings
+    q_emb = embed_query(query)  # shape (D,)
+    doc_texts = [t for (_id, t) in docs]
+    doc_embs = embed_documents(doc_texts)  # shape (N, D)
+
+    # Ensure shapes
+    if doc_embs.ndim != 2:
+        raise ValueError("doc_embs must be 2D array (N, D)")
+
+    probs = compute_retrieval_probs(q_emb, doc_embs, sigma=sigma)
+
+    N = len(docs)
+    k = min(k, N)
+
+    results = []
+    if strategy == "topk":
+        idxs = np.argsort(-probs)[:k]  # highest probabilities
+    elif strategy == "sample":
+        # sample without replacement weighted by probs
+        # if probs has zeros or extremely small values, np.random.choice handles it
+        idxs = np.random.choice(np.arange(N), size=k, replace=False, p=probs)
+    else:
+        raise ValueError("strategy must be 'topk' or 'sample'")
+
+    for i in idxs:
+        doc_id = docs[i][0]
+        doc_text = docs[i][1]
+        if return_probs:
+            results.append((doc_id, doc_text, float(probs[i])))
+        else:
+            results.append((doc_id, doc_text, float(probs[i])))
+    return results
+
+
+
+def build_rag_prompt(query: str, retrieved: List[Tuple[str, str, float]], max_snippet_len: Optional[int] = 1000) -> str:
+    """
+    Simple aggregator: prepend retrieved doc snippets to the query.
+    Trim long docs if desired.
+    """
+    pieces = []
+    for doc_id, doc_text, prob in retrieved:
+        snippet = doc_text if max_snippet_len is None else doc_text[:max_snippet_len]
+        pieces.append(f"[Doc {doc_id} | p={prob:.4f}]\n{snippet}\n---\n")
+    pieces.append(f"User query: {query}\nAnswer:")
+    return "\n".join(pieces)
+
+
+
+def example_usage():
+    """
+    This example uses dummy embeddings implemented below for demonstration.
+    Replace embed_query and embed_documents with actual embedding calls.
+    """
+    # --- Demo docs: list of (id, text)
+    docs = [
+        ("d1", "Apple releases new iPhone model with improved battery."),
+        ("d2", "A study on battery chemistry shows new lithium compounds."),
+        ("d3", "How to optimize battery life on your smartphone."),
+        ("d4", "Local sports team wins the championship."),
+        ("d5", "Market analysis: smartphone shipments and trends.")
+    ]
+
+    # For demo: define simple embedding functions (remove in prod)
+    def _demo_embed_texts(texts: List[str]) -> np.ndarray:
+        # toy deterministic embeddings: word counts mapped into small vector
+        vecs = []
+        for t in texts:
+            words = t.lower().split()
+            vec = np.array([len(t), len(words), sum(len(w) for w in words) % 50], dtype=float)
+            vecs.append(vec)
+        return np.vstack(vecs).astype(float)
+
+    def _demo_embed_query(q: str) -> np.ndarray:
+        return _demo_embed_texts([q])[0]
+
+    # monkeypatch the placeholder embedding functions for the demo
+    global embed_query, embed_documents
+    embed_query = _demo_embed_query
+    embed_documents = _demo_embed_texts
+
+    # Run retrieval
+    query = ""
+    sigma = 5.0  # larger sigma -> more uniform probs; tune this
+    retrieved = retrieve_docs(query, docs, sigma=sigma, k=5, strategy="topk", return_probs=True)
+
+    prompt = build_rag_prompt(query, retrieved, max_snippet_len=1000)
+    print("=== Retrieved docs (id, prob) ===")
+    for did, text, p in retrieved:
+        print(did, f"{p:.4f}")
+    print("\n=== Prompt to LLM ===")
+    print(prompt)
+
+    
+
+# If this script is run directly, run the example demo
+if __name__ == "__main__":
+    example_usage()

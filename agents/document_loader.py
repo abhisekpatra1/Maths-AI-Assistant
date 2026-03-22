@@ -149,6 +149,9 @@ class DocumentLoaderAgent:
             logger.error(f"Fallback PDF processing failed: {str(e)}")
         
         return documents
+
+
+
     
     def _process_docx(self, file_path: str) -> List[Document]:
         """Extract text from Word documents"""
@@ -230,7 +233,7 @@ class DocumentLoaderAgent:
         
         return documents
     
-    def _process_image(self, file_path: str) -> List[Document]:
+    def _process_image(self, file_path: str, index: int) -> List[Document]:
         """Extract text from images using OCR"""
         documents = []
         
@@ -243,7 +246,8 @@ class DocumentLoaderAgent:
                     page_content=text,
                     metadata={
                         "source": file_path,
-                        "type": "image_ocr"
+                        "type": "image_ocr",
+                        "image_index": index
                     }
                 ))
                 logger.info(f"Extracted text from image via OCR")

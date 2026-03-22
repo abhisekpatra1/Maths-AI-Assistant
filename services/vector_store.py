@@ -36,7 +36,7 @@ class VectorStoreService:
         self.persist_directory = persist_directory
         os.makedirs(persist_directory, exist_ok=True)
 
-        # Free, offline embeddings
+        #embeddings
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
         # Initialize ChromaDB client

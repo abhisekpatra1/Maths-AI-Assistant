@@ -21,7 +21,7 @@ class QAAgent:
         self.vector_store = vector_store
         self.session_manager = session_manager
         # Using Gemini 2.5 Flash — faster and cheaper, suitable for interactive RAG
-        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
+        self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.5)
         logger.info("Q&A Agent (Gemini) initialized")
 
     async def answer_question(self, session_id: str, question: str) -> Dict:
@@ -96,16 +96,24 @@ class QAAgent:
         # System role prompt
         messages = [
             SystemMessage(
-                content="""You are a medical document assistant. Answer questions based on the provided context from medical documents.
+                content="""You are a Mathematics document assistant. Answer questions based on the provided context from documents and files.
 
                 Guidelines:
-                - Provide accurate, evidence-based answers
-                - Cite specific information from the context
-                - If information is not in the context, say so clearly
-                - Maintain medical terminology accuracy
-                - Be concise but comprehensive
-                - Consider the conversation history for context"""
-                )
+                1. Answer using information explicitly stated in the provided CHUNK context and Chat History.
+                2. If the answer is found in Chat History (not in the CHUNKs), write:
+                "In Chat History I got the information."
+                Then provide the answer based on Chat History content.
+                3. If the information is NOT found in the context or chat history, respond formally like this:
+                "Apologies, but this specific information is not mentioned in the provided document or chat history. 
+                However, the document discusses related details such as [summarize 2–3 relevant lines from the context and cite them properly]."
+                4. Do NOT use any external knowledge or assumptions.
+                5. Do NOT hallucinate. If something is not explicitly mentioned, clearly state that it is not available.
+                6. Maintain a formal, concise, and citation-accurate tone throughout your response.
+                7. Do not use citations.
+                8. If an email is found → convert to:  <a href="mailto:EMAIL">EMAIL</a>
+                9. If a phone number is found → convert to:  <a href="tel:PHONE">PHONE</a>
+                """
+                        )
         ]
 
         # Add conversation history (last 20 turns)

@@ -53,6 +53,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     sources: List[str] = []
+    citations: List[str] = [] 
     session_id: str
 
 class ReportRequest(BaseModel):

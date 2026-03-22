@@ -27,7 +27,7 @@ class SummarizationAgent:
         """
         try:
             query = "medical findings clinical summary patient information"
-            documents = vector_store.similarity_search(session_id, query, k=10)
+            documents = vector_store.similarity_search(session_id, query, k=5)
 
             if not documents:
                 return "No documents available for summarization."

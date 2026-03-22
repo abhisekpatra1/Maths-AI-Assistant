@@ -10,9 +10,10 @@ from loguru import logger
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Frame, PageTemplate
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
 
 class ReportAssemblyAgent:
     """
@@ -65,9 +66,8 @@ class ReportAssemblyAgent:
         # Header
         header = Paragraph("The Generated Report", self.styles['Normal'])
         w, h = header.wrap(doc.width, doc.topMargin)
-        # header.drawOn(canvas, doc.leftMargin, doc.height + doc.topMargin - h)
         header.drawOn(canvas, doc.leftMargin, doc.height + doc.topMargin + (0.3 * inch))
-        
+
         # Footer
         footer_text = f"Page {doc.page}"
         footer = Paragraph(footer_text, self.styles['FooterStyle'])
@@ -77,7 +77,7 @@ class ReportAssemblyAgent:
 
     def _clean_text(self, text: str) -> str:
         """Clean and format text for PDF to prevent rendering errors."""
-        text = " ".join(text.split()) # Remove excessive whitespace
+        text = " ".join(text.split())  # Remove excessive whitespace
         # Escape special XML/HTML characters
         text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         return text
@@ -98,13 +98,17 @@ class ReportAssemblyAgent:
 
         current_source_section = ""
         for i, (source_section, table_info) in enumerate(all_tables, 1):
+            # Skip invalid data
+            if not isinstance(table_info, dict):
+                continue
+
             # Add a sub-heading for the source section if it's new
             if source_section != current_source_section:
                 story.append(Paragraph(f"<b>Tables from:</b> {source_section}", self.styles['TableTitle']))
                 current_source_section = source_section
 
             table_data = table_info.get("data")
-            if not table_data or not isinstance(table_data, list) or len(table_data) < 1:
+            if not isinstance(table_data, list) or len(table_data) < 1:
                 continue
 
             # Create and style the table
@@ -116,19 +120,20 @@ class ReportAssemblyAgent:
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
                 # Zebra Stripes
-                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F2F2F2')),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
                 # Grid
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
                 # Body Style
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
             ]))
             story.append(t)
             story.append(Spacer(1, 0.3 * inch))
+            if(i>3):
+                break
 
     async def assemble_report(
         self,
@@ -138,20 +143,13 @@ class ReportAssemblyAgent:
     ) -> str:
         """
         Assembles a structured PDF report from extracted content.
-
-        Args:
-            session_id: The unique session identifier.
-            extracted_content: A dictionary mapping section names to their content.
-            sections: An ordered list of sections to include in the report.
-
-        Returns:
-            The file path to the generated PDF report.
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"medical_report_{session_id[:8]}_{timestamp}.pdf"
+            os.makedirs("reports", exist_ok=True)
             filepath = os.path.join("reports", filename)
-            
+
             doc = SimpleDocTemplate(filepath, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch)
             story = []
 
@@ -169,7 +167,7 @@ class ReportAssemblyAgent:
             ))
             story.append(PageBreak())
 
-            # === 2. Report Contents (Table of Contents) ===
+            # === 2. Report Contents ===
             story.append(Paragraph("Report Contents", self.styles['SectionHeading']))
             for section_name in sections:
                 story.append(Paragraph(f"• &nbsp; {section_name}", self.styles['CustomBody']))
@@ -178,31 +176,39 @@ class ReportAssemblyAgent:
             # === 3. Aggregate all tables from content ===
             all_tables = []
             for section_name, content in extracted_content.items():
-                if "tables" in content and content["tables"]:
+                if isinstance(content, dict) and "tables" in content and isinstance(content["tables"], list):
                     for table_info in content["tables"]:
-                        all_tables.append((section_name, table_info))
+                        if isinstance(table_info, dict):
+                            all_tables.append((section_name, table_info))
 
             # === 4. Build Sections ===
             for section in sections:
                 if section == "Patient Tables":
-                    # This section is special and will be built from all aggregated tables
                     self._build_tables_section(story, all_tables)
                     continue
 
                 content = extracted_content.get(section, {})
+
                 story.append(PageBreak())
                 story.append(Paragraph(section, self.styles['SectionHeading']))
                 story.append(Spacer(1, 0.1 * inch))
 
-                # Add text-based content for the section
-                text_content = content.get("text", []) if isinstance(content, dict) else [str(content)]
+                # Safe text extraction
+                if isinstance(content, dict):
+                    text_content = content.get("text", [])
+                    if isinstance(text_content, str):
+                        text_content = [text_content]
+                elif isinstance(content, str):
+                    text_content = [content]
+                else:
+                    text_content = []
+
                 if text_content:
                     full_text = "\n\n".join(text_content)
                     story.append(Paragraph(self._clean_text(full_text), self.styles['CustomBody']))
                 else:
                     story.append(Paragraph("No textual information was extracted for this section.", self.styles['CustomBody']))
 
-                # Note about images if they exist
                 if isinstance(content, dict) and "images" in content and content["images"]:
                     story.append(Spacer(1, 0.2 * inch))
                     story.append(Paragraph(
@@ -210,12 +216,11 @@ class ReportAssemblyAgent:
                         self.styles['CustomBody']
                     ))
 
-            # === 5. Build the PDF ===
+            # === 5. Build PDF ===
             doc.build(story, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
-            
             logger.info(f"Report assembled successfully: {filepath}")
             return filepath
-            
+
         except Exception as e:
             logger.error(f"Error during report assembly: {e}", exc_info=True)
-            raise
+            raise e
